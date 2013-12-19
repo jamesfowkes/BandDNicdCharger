@@ -47,10 +47,12 @@
 #define HEARTBEAT_PORT IO_PORTB 
 #define CHARGE_ON_PORT IO_PORTB 
 #define BATT_ADC_PORT IO_PORTB
+#define CHARGE_STATE_PORT IO_PORTB 
 
 #define HEARTBEAT_PIN 0
 #define CHARGE_ON_PIN 1 
 #define BATT_ADC_PIN 2
+#define CHARGE_STATE_PIN 3
 
 #define BATT_ADC_CHANNEL LIB_ADC_CH_0
 
@@ -60,9 +62,9 @@
 #define NEGATIVE_DELTAV_ADC ADC_FROM_MILLIVOLTS(300UL)
 #define BATTERY_DISCONNECTED_ADC ADC_FROM_MILLIVOLTS(1000UL)
 
-#define APPLICATION_TICK_MS 1000
-#define BATTERY_CAPACITY_MAH 1500
-#define CHARGE_RATE_MA 1000
+#define APPLICATION_TICK_MS 1000UL
+#define BATTERY_CAPACITY_MAH 1500UL
+#define CHARGE_RATE_MA 1000UL
 
 #define CHARGING_TIMEOUT_COUNTS (MS_PER_HOUR * BATTERY_CAPACITY_MAH) / (CHARGE_RATE_MA * APPLICATION_TICK_MS)
 
@@ -97,6 +99,7 @@ static void setupTimer(void);
 static void applicationTick(void);
 static void adcHandler(void);
 static bool batteryIsCharged(void);
+static void updateChargeLED(void);
 
 static void startCharging(void);
 static void stopCharging(void);
@@ -176,6 +179,10 @@ static void setupIO(void)
 	IO_SetMode(HEARTBEAT_PORT, HEARTBEAT_PIN, IO_MODE_OUTPUT);
 	IO_SetMode(CHARGE_ON_PORT, CHARGE_ON_PIN, IO_MODE_OUTPUT);
 	IO_SetMode(BATT_ADC_PORT, BATT_ADC_PIN, IO_MODE_INPUT);
+	IO_SetMode(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_MODE_OUTPUT);
+	
+	IO_Control(CHARGE_ON_PORT, CHARGE_ON_PIN, IO_OFF);
+	IO_Control(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_OFF);
 }
 
 static void setupADC(void)
@@ -253,5 +260,26 @@ static void applicationTick(void)
 		{
 			SM_Event(sm_index, TIMER_EXPIRED);
 		}
+	}
+	
+	updateChargeLED();
+}
+
+static void updateChargeLED(void)
+{
+	switch(SM_GetState(sm_index))
+	{
+	case INIT:
+		IO_Control(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_OFF);
+		break;
+	case WAIT_FOR_BATT:
+		IO_Control(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_OFF);
+		break;
+	case WAIT_FOR_UNPLUG:
+		IO_Control(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_TOGGLE);
+		break;
+	case CHARGING:
+		IO_Control(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_ON);
+		break;
 	}
 }
