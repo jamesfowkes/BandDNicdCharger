@@ -70,7 +70,6 @@
 
 enum state
 {
-	INIT,
 	WAIT_FOR_BATT,
 	WAIT_FOR_UNPLUG,
 	CHARGING,
@@ -80,7 +79,7 @@ typedef enum state STATE;
 
 enum event
 {
-	BATTERY_READING,
+	BATTERY_PRESENT,
 	UNPLUGGED,
 	CHARGED,
 	TIMER_EXPIRED,
@@ -119,22 +118,18 @@ static uint8_t sm_index = 0;
 
 #include "app_test_harness.h"
 
-static const SM_STATE stateInit				= { INIT,				NULL, _testEnterState};
 static const SM_STATE stateWaitForBatt		= { WAIT_FOR_BATT,		NULL, _testEnterState};
 static const SM_STATE stateWaitForUnplug	= { WAIT_FOR_UNPLUG,	NULL, _testEnterState};
 static const SM_STATE stateCharging			= { CHARGING,			NULL, _testEnterState};
 
 static const SM_ENTRY sm[] = {
-	{&stateInit,			UNPLUGGED,			NULL,				&stateWaitForBatt	},
-	{&stateInit,			BATTERY_READING,	startCharging,		&stateCharging		},
-		
-	{&stateWaitForBatt,		BATTERY_READING,	startCharging,		&stateCharging		},
+	{&stateWaitForBatt,		BATTERY_PRESENT,	startCharging,		&stateCharging		},
 	{&stateWaitForBatt,		UNPLUGGED,			NULL,				&stateWaitForBatt	},
 		
 	{&stateWaitForUnplug,	UNPLUGGED,			NULL,				&stateWaitForBatt	},
-	{&stateWaitForUnplug,	BATTERY_READING,	NULL,				&stateWaitForUnplug	},
+	{&stateWaitForUnplug,	BATTERY_PRESENT,	NULL,				&stateWaitForUnplug	},
 		
-	{&stateCharging,		BATTERY_READING,	testChargeState,	&stateCharging		},
+	{&stateCharging,		BATTERY_PRESENT,	testChargeState,	&stateCharging		},
 	{&stateCharging,		CHARGED,			stopCharging,		&stateWaitForUnplug	},
 	{&stateCharging,		UNPLUGGED,			stopCharging,		&stateWaitForBatt	},
 	{&stateCharging,		TIMER_EXPIRED,		stopCharging,		&stateWaitForUnplug	},
@@ -221,7 +216,7 @@ static void setupTimer(void)
 static void setupStateMachine(void)
 {
 	SMM_Config(1, 3);
-	sm_index = SM_Init(&stateInit, MAX_EVENT, MAX_STATE, sm);
+	sm_index = SM_Init(&stateWaitForBatt, MAX_EVENT, MAX_STATE, sm);
 	SM_SetActive(sm_index, true);
 }
 
@@ -244,7 +239,7 @@ static void adcHandler(void)
 {
 	if (adc.reading > BATTERY_DISCONNECTED_ADC)
 	{
-		SM_Event(sm_index, BATTERY_READING);
+		SM_Event(sm_index, BATTERY_PRESENT);
 	}
 	else
 	{
@@ -291,9 +286,6 @@ static void updateChargeLED(void)
 {
 	switch(SM_GetState(sm_index))
 	{
-	case INIT:
-		IO_Control(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_OFF);
-		break;
 	case WAIT_FOR_BATT:
 		IO_Control(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_OFF);
 		break;
