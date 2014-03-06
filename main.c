@@ -40,12 +40,6 @@
 #include "lib_tmr8_tick.h"
 
 /*
- * Local Application Includes
- */
-
-#include "app_test_harness.h"
-
-/*
  * Defines and Typedefs
  */
 
@@ -68,7 +62,7 @@
 #define NEGATIVE_DELTAV_ADC ADC_FROM_MILLIVOLTS(300UL)
 #define BATTERY_DISCONNECTED_ADC ADC_FROM_MILLIVOLTS(1000UL)
 
-#define APPLICATION_TICK_MS 1000UL
+#define APPLICATION_TICK_MS 100UL
 #define BATTERY_CAPACITY_MAH 1500UL
 #define CHARGE_RATE_MA 1000UL
 
@@ -86,7 +80,7 @@ typedef enum state STATE;
 
 enum event
 {
-	NEW_ADC_READING,
+	BATTERY_READING,
 	UNPLUGGED,
 	CHARGED,
 	TIMER_EXPIRED,
@@ -101,13 +95,14 @@ typedef enum event EVENT;
 static void setupIO(void);
 static void setupADC(void);
 static void setupTimer(void);
+static void setupStateMachine(void);
 
 static void applicationTick(void);
 static void adcHandler(void);
 static bool batteryIsCharged(void);
 static void updateChargeLED(void);
 
-static void testADCReading(SM_STATEID old, SM_STATEID new, SM_EVENT e);
+static void testChargeState(SM_STATEID old, SM_STATEID new, SM_EVENT e);
 static void startCharging(SM_STATEID old, SM_STATEID new, SM_EVENT e);
 static void stopCharging(SM_STATEID old, SM_STATEID new, SM_EVENT e);
 
@@ -122,44 +117,44 @@ static ADC_CONTROL_ENUM adc;
 
 static uint8_t sm_index = 0;
 
-static const SM_STATE stateInit				= { INIT,				NULL, NULL};
-static const SM_STATE stateWaitForBatt		= { WAIT_FOR_BATT,		NULL, NULL};
-static const SM_STATE stateWaitForUnplug	= { WAIT_FOR_UNPLUG,	NULL, NULL};
-static const SM_STATE stateCharging			= { CHARGING,			NULL, NULL};
+#include "app_test_harness.h"
+
+static const SM_STATE stateInit				= { INIT,				NULL, _testEnterState};
+static const SM_STATE stateWaitForBatt		= { WAIT_FOR_BATT,		NULL, _testEnterState};
+static const SM_STATE stateWaitForUnplug	= { WAIT_FOR_UNPLUG,	NULL, _testEnterState};
+static const SM_STATE stateCharging			= { CHARGING,			NULL, _testEnterState};
 
 static const SM_ENTRY sm[] = {
-	{&stateInit,			UNPLUGGED,			NULL,			&stateWaitForBatt	},
-	{&stateInit,			NEW_ADC_READING,	startCharging,	&stateCharging		},
-	
-	{&stateWaitForBatt,		NEW_ADC_READING,	startCharging,	&stateCharging		},
+	{&stateInit,			UNPLUGGED,			NULL,				&stateWaitForBatt	},
+	{&stateInit,			BATTERY_READING,	startCharging,		&stateCharging		},
 		
-	{&stateWaitForUnplug,	UNPLUGGED,			NULL,			&stateWaitForBatt	},
-	
-	{&stateCharging,		NEW_ADC_READING,	testADCReading,	&stateCharging		},
-	{&stateCharging,		CHARGED,			stopCharging,	&stateWaitForUnplug	},
-	{&stateCharging,		UNPLUGGED,			stopCharging,	&stateWaitForBatt	},
-	{&stateCharging,		TIMER_EXPIRED,		stopCharging,	&stateWaitForUnplug	},
+	{&stateWaitForBatt,		BATTERY_READING,	startCharging,		&stateCharging		},
+	{&stateWaitForBatt,		UNPLUGGED,			NULL,				&stateWaitForBatt	},
+		
+	{&stateWaitForUnplug,	UNPLUGGED,			NULL,				&stateWaitForBatt	},
+	{&stateWaitForUnplug,	BATTERY_READING,	NULL,				&stateWaitForUnplug	},
+		
+	{&stateCharging,		BATTERY_READING,	testChargeState,	&stateCharging		},
+	{&stateCharging,		CHARGED,			stopCharging,		&stateWaitForUnplug	},
+	{&stateCharging,		UNPLUGGED,			stopCharging,		&stateWaitForBatt	},
+	{&stateCharging,		TIMER_EXPIRED,		stopCharging,		&stateWaitForUnplug	},
 };
 
-static AVERAGER * pAverager;
-static uint16_t s_highestAverage = 0;
+static AVERAGER16 * pAverager = NULL;
+static int16_t s_highestAverage = 0;
 static uint16_t s_timerCounts = 0;
 
 int main(void)
 {
 	
 	DO_TEST_HARNESS_PRE_INIT();
-	
-	CLK_Init(0);
 
 	setupIO();
 	setupADC();
 	setupTimer();
+	setupStateMachine();
 	
-	SMM_Config(1, 1);
-	sm_index = SM_Init(&stateInit, MAX_EVENT, MAX_STATE, sm);
-	
-	pAverager = AVERAGER_GetAverager(BUFFER_SIZE);
+	pAverager = AVERAGER16_GetAverager(BUFFER_SIZE);
 	
 	sei();
 	
@@ -185,7 +180,6 @@ int main(void)
 
 	return 0;
 }
-
 
 /*
  * Private Functions
@@ -224,11 +218,19 @@ static void setupTimer(void)
 	TMR8_Tick_AddTimerConfig(&appTick);
 }
 
+static void setupStateMachine(void)
+{
+	SMM_Config(1, 3);
+	sm_index = SM_Init(&stateInit, MAX_EVENT, MAX_STATE, sm);
+	SM_SetActive(sm_index, true);
+}
+
 static void startCharging(SM_STATEID old, SM_STATEID new, SM_EVENT e)
 {
 	(void)old; (void)new; (void)e;
 	s_highestAverage = 0;
 	s_timerCounts = 0;
+	AVERAGER16_Reset(pAverager, 0);
 	IO_Control(CHARGE_ON_PORT, CHARGE_ON_PIN, IO_OFF);
 }
 
@@ -242,7 +244,7 @@ static void adcHandler(void)
 {
 	if (adc.reading > BATTERY_DISCONNECTED_ADC)
 	{
-		SM_Event(sm_index, NEW_ADC_READING);
+		SM_Event(sm_index, BATTERY_READING);
 	}
 	else
 	{
@@ -250,11 +252,10 @@ static void adcHandler(void)
 	}
 }
 
-static void testADCReading(SM_STATEID old, SM_STATEID new, SM_EVENT e)
+static void testChargeState(SM_STATEID old, SM_STATEID new, SM_EVENT e)
 {
 	(void)old; (void)new; (void)e;
-	AVERAGER_NewData(pAverager, (uint32_t)adc.reading);
-	
+	AVERAGER16_NewData(pAverager, (int16_t)adc.reading);
 	if ( batteryIsCharged() )
 	{
 		SM_Event(sm_index, CHARGED);
@@ -263,15 +264,18 @@ static void testADCReading(SM_STATEID old, SM_STATEID new, SM_EVENT e)
 
 static bool batteryIsCharged(void)
 {
-	uint32_t average = AVERAGER_GetAverage(pAverager);
+	int16_t average = AVERAGER16_GetAverage(pAverager);
 	
 	s_highestAverage = max(s_highestAverage, average);
 	
-	return (s_highestAverage - average) > NEGATIVE_DELTAV_ADC;
+	return (s_highestAverage - average) > (int16_t)NEGATIVE_DELTAV_ADC;
 }
 
 static void applicationTick(void)
 {	
+	
+	ADC_GetReading(&adc);
+	
 	if (SM_GetState(sm_index) == CHARGING)
 	{
 		if (++s_timerCounts == CHARGING_TIMEOUT_COUNTS)

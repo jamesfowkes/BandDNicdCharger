@@ -1,6 +1,6 @@
-NAME = latrinesensor_test
+NAME = banddnicdcharger_test
 CC = gcc 
-FLAGS = -Wall -Wextra -lpthread -DTEST_HARNESS -DF_CPU=8000000 -DMEMORY_POOL_BYTES=64 -DTX_BUFFER_SIZE=15 -std=c99
+FLAGS = -Wall -Wextra -lpthread -DTEST_HARNESS -DF_CPU=8000000 -DMEMORY_POOL_BYTES=128 -DTX_BUFFER_SIZE=15 -std=c99
 
 LIBS_DIR = ../Libs
 
@@ -15,7 +15,6 @@ INCLUDE_DIRS = \
 
 CFILES = \
 	main.c \
-	app_test_harness.c \
 	$(LIBS_DIR)/AVR/lib_clk.c \
 	$(LIBS_DIR)/AVR/lib_io.c \
 	$(LIBS_DIR)/AVR/lib_fuses.c \
@@ -29,7 +28,13 @@ CFILES = \
 	$(LIBS_DIR)/Generics/averager.c \
 	$(LIBS_DIR)/Generics/statemachinemanager.c \
 	$(LIBS_DIR)/Generics/statemachine.c \
-	
+
+OBJDEPS=$(CFILES:.c=.o)
+
 all:
 	$(CC) $(FLAGS) $(INCLUDE_DIRS) $(OPTS) $(CFILES) -o $(NAME).exe
 	$(NAME).exe
+
+clean:
+	$(RM) $(NAME).exe
+	$(RM) $(OBJDEPS)
