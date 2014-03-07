@@ -64,6 +64,8 @@ upload:
 	avrdude -pt85 -cusbtiny -Uflash:w:$(NAME).hex:a
 
 clean:
+	$(RM) $(NAME).map
 	$(RM) $(NAME).elf
 	$(RM) $(NAME).hex
+	$(RM) error.txt
 	$(RM) $(OBJDEPS)
