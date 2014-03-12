@@ -1,6 +1,6 @@
 NAME = banddnicdcharger_test
 CC = gcc 
-FLAGS = -Wall -Wextra -lpthread -DTEST_HARNESS -DF_CPU=8000000 -DMEMORY_POOL_BYTES=128 -DTX_BUFFER_SIZE=15 -std=c99
+FLAGS = -Wall -Wextra -lpthread -DTEST_HARNESS -DF_CPU=8000000 -DMEMORY_POOL_BYTES=2048 -DTX_BUFFER_SIZE=15 -std=c99
 
 LIBS_DIR = ../Libs
 
@@ -21,6 +21,7 @@ CFILES = \
 	$(LIBS_DIR)/AVR/lib_sleep.c \
 	$(LIBS_DIR)/AVR/lib_wdt.c \
 	$(LIBS_DIR)/AVR/lib_adc.c \
+	$(LIBS_DIR)/AVR/Harness/lib_adc_harness_functions.c \
 	$(LIBS_DIR)/AVR/lib_tmr8_tick.c \
 	$(LIBS_DIR)/AVR/Harness/lib_tmr8_tick_harness_functions.c \
 	$(LIBS_DIR)/Generics/memorypool.c \
@@ -28,6 +29,7 @@ CFILES = \
 	$(LIBS_DIR)/Generics/averager.c \
 	$(LIBS_DIR)/Generics/statemachinemanager.c \
 	$(LIBS_DIR)/Generics/statemachine.c \
+	$(LIBS_DIR)/Utility/util_sequence_generator.c \
 
 OBJDEPS=$(CFILES:.c=.o)
 
