@@ -136,7 +136,7 @@ static const SM_ENTRY sm[] = {
 };
 
 static AVERAGER * pAverager = NULL;
-static int16_t s_highestAverage = 0;
+static uint16_t s_highestAverage = 0;
 static uint16_t s_timerCounts = 0;
 
 int main(void)
@@ -250,7 +250,7 @@ static void adcHandler(void)
 static void testChargeState(SM_STATEID old, SM_STATEID new, SM_EVENT e)
 {
 	(void)old; (void)new; (void)e;
-	AVERAGER_NewData(pAverager, &((uint16_t)adc.reading));
+	AVERAGER_NewData(pAverager, (void*)&adc.reading);
 	if ( batteryIsCharged() )
 	{
 		SM_Event(sm_index, CHARGED);

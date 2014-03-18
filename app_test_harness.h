@@ -47,8 +47,9 @@ static void _testEnterState(SM_STATEID old, SM_STATEID new, SM_EVENT e)
 
 #else
 #define _testEnterState NULL
-#define DO_TEST_HARNESS_SETUP() {};
-#define DO_TEST_HARNESS_RUNNING() {};
+#define DO_TEST_HARNESS_PRE_INIT() {}
+#define DO_TEST_HARNESS_POST_INIT() {}
+#define DO_TEST_HARNESS_RUNNING() {}
 #endif
 
 #endif
