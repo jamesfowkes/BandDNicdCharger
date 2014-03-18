@@ -135,7 +135,7 @@ static const SM_ENTRY sm[] = {
 	{&stateCharging,		TIMER_EXPIRED,		stopCharging,		&stateWaitForUnplug	},
 };
 
-static AVERAGER16 * pAverager = NULL;
+static AVERAGER * pAverager = NULL;
 static int16_t s_highestAverage = 0;
 static uint16_t s_timerCounts = 0;
 
@@ -149,7 +149,7 @@ int main(void)
 	setupTimer();
 	setupStateMachine();
 	
-	pAverager = AVERAGER16_GetAverager(BUFFER_SIZE);
+	pAverager = AVERAGER_GetAverager(U16, BUFFER_SIZE);
 	
 	sei();
 	
@@ -225,7 +225,7 @@ static void startCharging(SM_STATEID old, SM_STATEID new, SM_EVENT e)
 	(void)old; (void)new; (void)e;
 	s_highestAverage = 0;
 	s_timerCounts = 0;
-	AVERAGER16_Reset(pAverager, 0);
+	AVERAGER_Reset(pAverager, 0);
 	IO_Control(CHARGE_ON_PORT, CHARGE_ON_PIN, IO_OFF);
 }
 
@@ -250,7 +250,7 @@ static void adcHandler(void)
 static void testChargeState(SM_STATEID old, SM_STATEID new, SM_EVENT e)
 {
 	(void)old; (void)new; (void)e;
-	AVERAGER16_NewData(pAverager, (int16_t)adc.reading);
+	AVERAGER_NewData(pAverager, &((uint16_t)adc.reading));
 	if ( batteryIsCharged() )
 	{
 		SM_Event(sm_index, CHARGED);
@@ -259,7 +259,8 @@ static void testChargeState(SM_STATEID old, SM_STATEID new, SM_EVENT e)
 
 static bool batteryIsCharged(void)
 {
-	int16_t average = AVERAGER16_GetAverage(pAverager);
+	uint16_t average;
+	AVERAGER_GetAverage(pAverager, &average);
 	
 	s_highestAverage = max(s_highestAverage, average);
 	
