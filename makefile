@@ -39,7 +39,7 @@ OPTS = \
 	-Wall \
 	-Wextra \
 	-DF_CPU=8000000 \
-	-DMEMORY_POOL_BYTES=64 \
+	-DMEMORY_POOL_BYTES=256 \
 	-ffunction-sections \
 	-std=c99
 
