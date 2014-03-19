@@ -1,5 +1,7 @@
 ## Compiled Objects ##
 *.o
+*.d
+*.mk
 *.exe
 *.hex
 *.elf
