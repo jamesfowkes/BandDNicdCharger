@@ -38,6 +38,7 @@
 #include "lib_adc.h"
 #include "lib_wdt.h"
 #include "lib_tmr8_tick.h"
+#include "lib_swserial.h"
 
 /*
  * Defines and Typedefs
@@ -187,6 +188,9 @@ static void setupIO(void)
 	
 	IO_Control(eCHARGE_ON_PORT, CHARGE_ON_PIN, IO_OFF);
 	IO_Control(eCHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_OFF);
+	
+	SWS_TxInit(IO_PORTB, 1);
+	SWS_SetBaudRate(LIB_SWS_BAUD_4800);
 }
 
 static void setupADC(void)
@@ -235,6 +239,7 @@ static void stopCharging(SM_STATEID old, SM_STATEID new, SM_EVENT e)
 
 static bool batteryIsConnected(void)
 {
+	sws_var_dump(adc.reading, "%U");
 	bool connected = false;
 	connected |= adc.reading > BATTERY_DISCONNECTED_HIGH_ADC;
 	connected |= adc.reading < BATTERY_DISCONNECTED_LOW_ADC;

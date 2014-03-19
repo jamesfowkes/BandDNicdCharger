@@ -29,6 +29,7 @@ CFILES = \
 	$(LIBS_DIR)/AVR/lib_adc.c \
 	$(LIBS_DIR)/AVR/lib_tmr8.c \
 	$(LIBS_DIR)/AVR/lib_tmr8_tick.c \
+	$(LIBS_DIR)/AVR/lib_swserial.c \
 	$(LIBS_DIR)/Generics/memorypool.c \
 	$(LIBS_DIR)/Generics/averager.c \
 	$(LIBS_DIR)/Generics/ringbuf.c \
@@ -40,6 +41,7 @@ OPTS = \
 	-Wextra \
 	-DF_CPU=8000000 \
 	-DMEMORY_POOL_BYTES=256 \
+	-DTX_BUFFER_SIZE=32 \
 	-ffunction-sections \
 	-std=c99
 
