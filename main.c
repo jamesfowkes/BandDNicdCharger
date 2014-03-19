@@ -18,7 +18,6 @@
  
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <avr/wdt.h>
 
 /*
  * Generic Library Includes
@@ -37,6 +36,7 @@
 #include "lib_clk.h"
 #include "lib_io.h"
 #include "lib_adc.h"
+#include "lib_wdt.h"
 #include "lib_tmr8_tick.h"
 
 /*
@@ -44,25 +44,25 @@
  */
 
 /* Pins and ports */
-#define HEARTBEAT_PORT IO_PORTB 
-#define CHARGE_ON_PORT IO_PORTB 
-#define BATT_ADC_PORT IO_PORTB
-#define CHARGE_STATE_PORT IO_PORTB 
+#define eCHARGE_ON_PORT IO_PORTB 
+#define eBATT_ADC_PORT IO_PORTB
+#define eCHARGE_STATE_PORT IO_PORTB 
 
-#define HEARTBEAT_PIN 0
-#define CHARGE_ON_PIN 1 
-#define BATT_ADC_PIN 2
-#define CHARGE_STATE_PIN 3
+#define CHARGE_ON_PIN 3
+#define BATT_ADC_PIN 4
+#define CHARGE_STATE_PIN 2
 
-#define BATT_ADC_CHANNEL LIB_ADC_CH_0
+#define BATT_ADC_CHANNEL LIB_ADC_CH_2
 
 #define BUFFER_SIZE 32
 
 #define ADC_FROM_MILLIVOLTS(mv) (((mv * 1023UL) + 2500UL)/ 5000UL)
 #define NEGATIVE_DELTAV_ADC ADC_FROM_MILLIVOLTS(300UL)
-#define BATTERY_DISCONNECTED_ADC ADC_FROM_MILLIVOLTS(1000UL)
 
-#define APPLICATION_TICK_MS 100UL
+#define BATTERY_DISCONNECTED_HIGH_ADC  ADC_FROM_MILLIVOLTS(4000UL)
+#define BATTERY_DISCONNECTED_LOW_ADC ADC_FROM_MILLIVOLTS(500UL)
+
+#define APPLICATION_TICK_MS 500UL
 #define BATTERY_CAPACITY_MAH 1500UL
 #define CHARGE_RATE_MA 1000UL
 
@@ -153,7 +153,7 @@ int main(void)
 	
 	sei();
 	
-	wdt_disable();
+	WD_DISABLE();
 	
 	DO_TEST_HARNESS_POST_INIT();
 	
@@ -169,7 +169,6 @@ int main(void)
 		if (TMR8_Tick_TestAndClear(&appTick))
 		{
 			applicationTick();
-			IO_Control(HEARTBEAT_PORT, HEARTBEAT_PIN, IO_TOGGLE);
 		}		
 	}
 
@@ -182,13 +181,12 @@ int main(void)
 
 static void setupIO(void)
 {
-	IO_SetMode(HEARTBEAT_PORT, HEARTBEAT_PIN, IO_MODE_OUTPUT);
-	IO_SetMode(CHARGE_ON_PORT, CHARGE_ON_PIN, IO_MODE_OUTPUT);
-	IO_SetMode(BATT_ADC_PORT, BATT_ADC_PIN, IO_MODE_INPUT);
-	IO_SetMode(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_MODE_OUTPUT);
+	IO_SetMode(eCHARGE_ON_PORT, CHARGE_ON_PIN, IO_MODE_OUTPUT);
+	IO_SetMode(eBATT_ADC_PORT, BATT_ADC_PIN, IO_MODE_INPUT);
+	IO_SetMode(eCHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_MODE_OUTPUT);
 	
-	IO_Control(CHARGE_ON_PORT, CHARGE_ON_PIN, IO_OFF);
-	IO_Control(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_OFF);
+	IO_Control(eCHARGE_ON_PORT, CHARGE_ON_PIN, IO_OFF);
+	IO_Control(eCHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_OFF);
 }
 
 static void setupADC(void)
@@ -226,18 +224,26 @@ static void startCharging(SM_STATEID old, SM_STATEID new, SM_EVENT e)
 	s_highestAverage = 0;
 	s_timerCounts = 0;
 	AVERAGER_Reset(pAverager, 0);
-	IO_Control(CHARGE_ON_PORT, CHARGE_ON_PIN, IO_OFF);
+	IO_Control(eCHARGE_ON_PORT, CHARGE_ON_PIN, IO_ON);
 }
 
 static void stopCharging(SM_STATEID old, SM_STATEID new, SM_EVENT e)
 {
 	(void)old; (void)new; (void)e;
-	IO_Control(CHARGE_ON_PORT, CHARGE_ON_PIN, IO_OFF);
+	IO_Control(eCHARGE_ON_PORT, CHARGE_ON_PIN, IO_OFF);
+}
+
+static bool batteryIsConnected(void)
+{
+	bool connected = false;
+	connected |= adc.reading > BATTERY_DISCONNECTED_HIGH_ADC;
+	connected |= adc.reading < BATTERY_DISCONNECTED_LOW_ADC;
+	return connected;
 }
 
 static void adcHandler(void)
 {
-	if (adc.reading > BATTERY_DISCONNECTED_ADC)
+	if (batteryIsConnected())
 	{
 		SM_Event(sm_index, BATTERY_PRESENT);
 	}
@@ -288,13 +294,13 @@ static void updateChargeLED(void)
 	switch(SM_GetState(sm_index))
 	{
 	case WAIT_FOR_BATT:
-		IO_Control(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_OFF);
+		IO_Control(eCHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_OFF);
 		break;
 	case WAIT_FOR_UNPLUG:
-		IO_Control(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_TOGGLE);
+		IO_Control(eCHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_TOGGLE);
 		break;
 	case CHARGING:
-		IO_Control(CHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_ON);
+		IO_Control(eCHARGE_STATE_PORT, CHARGE_STATE_PIN, IO_ON);
 		break;
 	}
 }
